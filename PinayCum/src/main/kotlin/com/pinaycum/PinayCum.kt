@@ -30,8 +30,8 @@ class PinayCum : MainAPI() {
         
         val resultsList = document.select("a[href*='watch.php?id=']").mapNotNull { it.toSearchResult() }
         
-        // FIXED: Using newSearchResponseList factory helper method
-        return newSearchResponseList(query, resultsList, hasNext = true)
+        // FIXED: Swapped parameters to match expected signature types
+        return newSearchResponseList(resultsList, hasNext = true)
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
@@ -80,12 +80,12 @@ class PinayCum : MainAPI() {
         val downloadLink = document.selectFirst("a[href*='vidaratem.com']")?.attr("href")
         if (downloadLink != null) {
             callback(
-                newExtractorLink(
-                    name = name,
+                ExtractorLink(
                     source = "Direct",
+                    name = name,
                     url = fixUrl(downloadLink),
-                    refererUrl = mainUrl,          // FIXED parameter name
-                    qualityInt = Qualities.Unknown.value, // FIXED parameter name
+                    referer = mainUrl,
+                    quality = Qualities.Unknown.value,
                     type = ExtractorLinkType.VIDEO
                 )
             )
@@ -96,12 +96,13 @@ class PinayCum : MainAPI() {
             val src = el.attr("src").takeIf { it.isNotEmpty() }
             if (src != null) {
                 callback(
-                    newExtractorLink(
-                        name = name,
+                    ExtractorLink(
                         source = "Video Source",
+                        name = name,
                         url = fixUrl(src),
-                        refererUrl = mainUrl,          // FIXED parameter name
-                        qualityInt = Qualities.Unknown.value // FIXED parameter name
+                        referer = mainUrl,
+                        quality = Qualities.Unknown.value,
+                        type = ExtractorLinkType.VIDEO
                     )
                 )
             }
