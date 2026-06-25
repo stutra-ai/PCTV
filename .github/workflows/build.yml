@@ -41,9 +41,11 @@ jobs:
           if git fetch origin builds --depth=1; then
             git checkout builds
           else
-            echo "Branch 'builds' not found. Creating it locally..."
+            echo "Branch 'builds' not found. Seeding initial environment..."
             git checkout --orphan builds
             git rm -rf . || true
+            # FORCE SEED: Create a dummy tracking file so git has a baseline to push
+            echo "Initial Build Sync Placeholder" > .init_seed
           fi
 
       - name: Clean old builds
@@ -65,7 +67,7 @@ jobs:
           chmod +x gradlew
           ./gradlew make makePluginsJson --no-build-cache --rerun-tasks
           
-          # FIXED: Advanced copy safety configuration matching fallback targets
+          # Universal directory mapping safety fallbacks
           cp -r build/plugins.json $GITHUB_WORKSPACE/builds/ || cp -r **/build/plugins.json $GITHUB_WORKSPACE/builds/ || true
           find . -name "*.cs3" -exec cp {} $GITHUB_WORKSPACE/builds/ \; || true
 
@@ -75,19 +77,13 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/builds
           
-          # FIXED: Git config identity must be re-stated here to avoid commit environment failures
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
           
+          # Force add tracking variables globally across the root tree 
           git add -A
           
-          # FIXED: Secure logical sequencing layout prevents silencing errors
-          if git commit -m "Build $GITHUB_SHA"; then
-            echo "Created new commit"
-          else
-            echo "Attempting amend format fallback..."
-            git commit --amend -m "Build $GITHUB_SHA" || echo "No changes to commit"
-          fi
+          # Explicit execution path forces pushing even if staging encounters empty tracking parameters
+          git commit -m "Build update: $GITHUB_SHA" --allow-empty
           
-          # Force push up to your remote repository branch
           git push origin builds --force
