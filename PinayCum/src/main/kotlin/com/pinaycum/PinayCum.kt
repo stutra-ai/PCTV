@@ -30,7 +30,8 @@ class PinayCum : MainAPI() {
         
         val resultsList = document.select("a[href*='watch.php?id=']").mapNotNull { it.toSearchResult() }
         
-        return SearchResponseList(resultsList)
+        // FIXED: Using newSearchResponseList factory helper method
+        return newSearchResponseList(query, resultsList, hasNext = true)
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
@@ -83,8 +84,8 @@ class PinayCum : MainAPI() {
                     name = name,
                     source = "Direct",
                     url = fixUrl(downloadLink),
-                    referer = mainUrl,
-                    quality = Qualities.Unknown.value,
+                    refererUrl = mainUrl,          // FIXED parameter name
+                    qualityInt = Qualities.Unknown.value, // FIXED parameter name
                     type = ExtractorLinkType.VIDEO
                 )
             )
@@ -99,8 +100,8 @@ class PinayCum : MainAPI() {
                         name = name,
                         source = "Video Source",
                         url = fixUrl(src),
-                        referer = mainUrl,
-                        quality = Qualities.Unknown.value
+                        refererUrl = mainUrl,          // FIXED parameter name
+                        qualityInt = Qualities.Unknown.value // FIXED parameter name
                     )
                 )
             }
