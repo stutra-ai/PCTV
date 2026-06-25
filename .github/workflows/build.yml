@@ -24,7 +24,6 @@ jobs:
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
-        # FIXED: Removed the nested path constraint to keep paths standard
 
       - name: Setup JDK 21
         uses: actions/setup-java@v4
@@ -41,19 +40,18 @@ jobs:
           chmod +x gradlew
           ./gradlew make makePluginsJson --no-build-cache --rerun-tasks
           
-          # Create an isolated clean folder for staging output artifacts
+          # Create the isolated output folder
           mkdir -p $GITHUB_WORKSPACE/output_builds
           
-          echo "==== Hunting for Compiled Extension Assets ===="
+          echo "==== Hard Copying Compiled Extension Assets ===="
+          
+          # Direct hard copies from known gradle output targets
+          cp build/plugins.json $GITHUB_WORKSPACE/output_builds/ || cp PinayCum/build/plugins.json $GITHUB_WORKSPACE/output_builds/ || true
+          cp PinayCum/build/*.cs3 $GITHUB_WORKSPACE/output_builds/ || cp build/*.cs3 $GITHUB_WORKSPACE/output_builds/ || true
+          
+          # Universal search backup rule just in case paths change
           find . -name "plugins.json" -exec cp {} $GITHUB_WORKSPACE/output_builds/ \;
           find . -name "*.cs3" -exec cp {} $GITHUB_WORKSPACE/output_builds/ \;
-          find . -name "*release*.apk" -exec cp {} $GITHUB_WORKSPACE/output_builds/ \;
-          find . -name "*debug*.apk" -exec cp {} $GITHUB_WORKSPACE/output_builds/ \;
-          
-          cd $GITHUB_WORKSPACE/output_builds
-          for f in *.apk; do
-              [ -f "$f" ] && mv "$f" "${f%.apk}.cs3"
-          done
           
           echo "Staging items verified:"
           ls -la $GITHUB_WORKSPACE/output_builds/
@@ -61,7 +59,7 @@ jobs:
       - name: Deploy to builds branch
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: output_builds          # Now maps perfectly to the workspace structure
+          folder: output_builds
           branch: builds
           token: ${{ secrets.GITHUB_TOKEN }}
           clean: false
