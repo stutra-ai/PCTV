@@ -1,6 +1,5 @@
 name: Build
 
-# https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#concurrency
 concurrency:
   group: "build"
   cancel-in-progress: true
@@ -23,16 +22,31 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Source
         uses: actions/checkout@v4
         with:
           path: "src"
 
-      - name: Checkout builds
-        uses: actions/checkout@v4
-        with:
-          ref: "builds"
-          path: "builds"
+      # REPLACED actions/checkout with an automatic script fallback
+      name: Prepare builds folder
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir $GITHUB_WORKSPACE/builds
+          cd $GITHUB_WORKSPACE/builds
+          git init
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+          
+          # Try to fetch the branch. If it fails, create an orphan branch instead!
+          if git fetch origin builds --depth=1; then
+            git checkout builds
+          else
+            echo "Branch 'builds' not found. Creating it locally..."
+            git checkout --orphan builds
+            git rm -rf . || true
+          fi
 
       - name: Clean old builds
         run: rm -f $GITHUB_WORKSPACE/builds/*.cs3
@@ -60,9 +74,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd $GITHUB_WORKSPACE/builds
-          git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions"
           git add .
-          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
-          git commit --amend -m "Build $GITHUB_SHA" || git commit -m "Build $GITHUB_SHA" || exit 0
+          # If we created a brand new branch, we use a standard commit instead of --amend
+          git commit -m "Build $GITHUB_SHA" || git commit --amend -m "Build $GITHUB_SHA" || exit 0
           git push origin builds --force
