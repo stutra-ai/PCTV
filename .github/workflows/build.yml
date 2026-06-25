@@ -57,9 +57,9 @@ jobs:
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
           
-          # 4. Force switch local runner to the builds branch layout (create it if missing)
-          if git show-ref --verify --quiet refs/remotes/origin/builds; then
-            git checkout builds
+          # 4. Force switch local runner to the builds branch layout cleanly
+          if git fetch origin builds --depth=1; then
+            git checkout -B builds origin/builds
           else
             git checkout --orphan builds
             git rm -rf . || true
