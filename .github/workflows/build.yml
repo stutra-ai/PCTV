@@ -64,7 +64,8 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/src
           chmod +x gradlew
-          ./gradlew make makePluginsJson
+          # Added flags below to clear out corrupted or old compiler states
+          ./gradlew make makePluginsJson --no-build-cache --rerun-tasks
           cp **/build/*.cs3 $GITHUB_WORKSPACE/builds || true
           cp build/plugins.json $GITHUB_WORKSPACE/builds || true
 
