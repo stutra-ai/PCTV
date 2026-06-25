@@ -12,25 +12,25 @@ class PinayCum : MainAPI() {
     override var lang = "tl"
     override val hasMainPage = true
     override val hasQuickSearch = true
-    override val hasSearch = true
 
     override val mainPage = mainPageOf(
         "$mainUrl/" to "Latest Videos",
-        // You can add more if categories exist
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val url = if (page <= 1) request.data else "${request.data.removeSuffix("/")}/page/$page/" // adjust if pagination differs
+        val url = if (page <= 1) request.data else "${request.data.removeSuffix("/")}/page/$page/"
         val document = app.get(url).document
         val items = document.select("a[href*='watch.php?id=']").mapNotNull { it.toSearchResult() }
         return newHomePageResponse(request.name, items, hasNext = true)
     }
 
-    override suspend fun search(query: String, page: Int): List<SearchResponse> {
-        // Site search is weak; using main page with query if possible, or fallback
+    override suspend fun search(query: String, page: Int): SearchResponseList {
         val url = if (page <= 1) "$mainUrl/?s=$query" else "$mainUrl/?s=$query&page=$page"
         val document = app.get(url).document
-        return document.select("a[href*='watch.php?id=']").mapNotNull { it.toSearchResult() }
+        
+        val resultsList = document.select("a[href*='watch.php?id=']").mapNotNull { it.toSearchResult() }
+        
+        return SearchResponseList(resultsList)
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
@@ -55,10 +55,9 @@ class PinayCum : MainAPI() {
                 ?: document.selectFirst("img")?.attr("src")
         )
 
-        val viewsLikes = document.selectFirst("strong")?.text() // e.g., "122866 Views | 13764 Likes"
+        val viewsLikes = document.selectFirst("strong")?.text()
         val description = document.selectFirst("meta[property=og:description]")?.attr("content")
 
-        // Related videos
         val recommendations = document.select("a[href*='watch.php?id=']").mapNotNull { it.toSearchResult() }
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
@@ -76,11 +75,11 @@ class PinayCum : MainAPI() {
     ): Boolean {
         val document = app.get(data).document
 
-        // Direct Download Link (main source on this site)
+        // Direct Download Link
         val downloadLink = document.selectFirst("a[href*='vidaratem.com']")?.attr("href")
         if (downloadLink != null) {
             callback(
-                ExtractorLink(
+                newExtractorLink(
                     name = name,
                     source = "Direct",
                     url = fixUrl(downloadLink),
@@ -96,7 +95,7 @@ class PinayCum : MainAPI() {
             val src = el.attr("src").takeIf { it.isNotEmpty() }
             if (src != null) {
                 callback(
-                    ExtractorLink(
+                    newExtractorLink(
                         name = name,
                         source = "Video Source",
                         url = fixUrl(src),
@@ -107,7 +106,6 @@ class PinayCum : MainAPI() {
             }
         }
 
-        // If needed, add more extractors or JS evaluation later
         return true
     }
 }
