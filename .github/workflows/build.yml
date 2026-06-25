@@ -47,15 +47,11 @@ jobs:
           mkdir -p $GITHUB_WORKSPACE/output_builds
           
           echo "==== Hunting for Compiled Extension Assets ===="
-          # Safely copy plugins.json from wherever it was generated
           find . -name "plugins.json" -exec cp {} $GITHUB_WORKSPACE/output_builds/ \;
-          
-          # Grab extension files (.cs3) or raw app binaries (.apk)
           find . -name "*.cs3" -exec cp {} $GITHUB_WORKSPACE/output_builds/ \;
           find . -name "*release*.apk" -exec cp {} $GITHUB_WORKSPACE/output_builds/ \;
           find . -name "*debug*.apk" -exec cp {} $GITHUB_WORKSPACE/output_builds/ \;
           
-          # If any outputs came out as .apk, rename them to .cs3 format seamlessly
           cd $GITHUB_WORKSPACE/output_builds
           for f in *.apk; do
               [ -f "$f" ] && mv "$f" "${f%.apk}.cs3"
@@ -67,7 +63,9 @@ jobs:
       - name: Deploy to builds branch
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: output_builds          # The folder the action should deploy.
-          branch: builds                # The branch the action should deploy to.
+          # FIXED: Instructs the deployer action to reference your actual git directory root
+          workspace: src                  
+          folder: ../output_builds       # Points to the staging folder relative to the new workspace root
+          branch: builds
           token: ${{ secrets.GITHUB_TOKEN }}
-          clean: false                  # Set to true if you want to wipe previous build history inside the builds branch
+          clean: false
