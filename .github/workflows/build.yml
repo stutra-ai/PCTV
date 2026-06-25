@@ -24,6 +24,8 @@ jobs:
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetches all branches so Git knows exactly where 'builds' is
 
       - name: Setup JDK 21
         uses: actions/setup-java@v4
@@ -35,31 +37,41 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
-      - name: Build Plugins
+      - name: Build and Push Plugins Directly
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # 1. Build the source code
           chmod +x gradlew
           ./gradlew make makePluginsJson --no-build-cache --rerun-tasks
           
-          # Create the isolated output folder
-          mkdir -p $GITHUB_WORKSPACE/output_builds
+          # 2. Back up our compiled files safely into the runner RAM temporary space
+          mkdir -p /tmp/artifacts
+          find . -name "plugins.json" -exec cp {} /tmp/artifacts/ \;
+          find . -name "*.cs3" -exec cp {} /tmp/artifacts/ \;
           
-          echo "==== Hard Copying Compiled Extension Assets ===="
+          echo "==== Verified Compiled Files ===="
+          ls -la /tmp/artifacts/
           
-          # Direct hard copies from known gradle output targets
-          cp build/plugins.json $GITHUB_WORKSPACE/output_builds/ || cp PinayCum/build/plugins.json $GITHUB_WORKSPACE/output_builds/ || true
-          cp PinayCum/build/*.cs3 $GITHUB_WORKSPACE/output_builds/ || cp build/*.cs3 $GITHUB_WORKSPACE/output_builds/ || true
+          # 3. Configure Git Identity
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
           
-          # Universal search backup rule just in case paths change
-          find . -name "plugins.json" -exec cp {} $GITHUB_WORKSPACE/output_builds/ \;
-          find . -name "*.cs3" -exec cp {} $GITHUB_WORKSPACE/output_builds/ \;
+          # 4. Force switch local runner to the builds branch layout (create it if missing)
+          if git show-ref --verify --quiet refs/remotes/origin/builds; then
+            git checkout builds
+          else
+            git checkout --orphan builds
+            git rm -rf . || true
+          fi
           
-          echo "Staging items verified:"
-          ls -la $GITHUB_WORKSPACE/output_builds/
-
-      - name: Deploy to builds branch
-        uses: JamesIves/github-pages-deploy-action@v4
-        with:
-          folder: output_builds
-          branch: builds
-          token: ${{ secrets.GITHUB_TOKEN }}
-          clean: false
+          # 5. Bring our backed up compilation files into the root branch directory
+          cp /tmp/artifacts/* .
+          
+          # 6. Force add and sync straight up to your GitHub repository
+          git add plugins.json *.cs3
+          git commit -m "Automated build update: $GITHUB_SHA" --allow-empty
+          
+          # Set explicit remote auth to bypass deployment permission blocks
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+          git push origin builds --force
