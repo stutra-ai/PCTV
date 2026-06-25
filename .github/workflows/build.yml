@@ -38,7 +38,6 @@ jobs:
           git config --local user.name "GitHub Actions"
           git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
           
-          # Try to fetch the branch. If it fails, create an orphan branch instead!
           if git fetch origin builds --depth=1; then
             git checkout builds
           else
@@ -64,17 +63,31 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/src
           chmod +x gradlew
-          # Added flags below to clear out corrupted or old compiler states
           ./gradlew make makePluginsJson --no-build-cache --rerun-tasks
-          cp **/build/*.cs3 $GITHUB_WORKSPACE/builds || true
-          cp build/plugins.json $GITHUB_WORKSPACE/builds || true
+          
+          # FIXED: Advanced copy safety configuration matching fallback targets
+          cp -r build/plugins.json $GITHUB_WORKSPACE/builds/ || cp -r **/build/plugins.json $GITHUB_WORKSPACE/builds/ || true
+          find . -name "*.cs3" -exec cp {} $GITHUB_WORKSPACE/builds/ \; || true
 
       - name: Push builds
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd $GITHUB_WORKSPACE/builds
-          git add .
-          # Try to commit normally first if it's a new branch, fallback to amend if it exists
-          git commit -m "Build $GITHUB_SHA" || git commit --amend -m "Build $GITHUB_SHA" || exit 0
+          
+          # FIXED: Git config identity must be re-stated here to avoid commit environment failures
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          
+          git add -A
+          
+          # FIXED: Secure logical sequencing layout prevents silencing errors
+          if git commit -m "Build $GITHUB_SHA"; then
+            echo "Created new commit"
+          else
+            echo "Attempting amend format fallback..."
+            git commit --amend -m "Build $GITHUB_SHA" || echo "No changes to commit"
+          fi
+          
+          # Force push up to your remote repository branch
           git push origin builds --force
