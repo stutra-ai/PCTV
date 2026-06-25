@@ -24,8 +24,7 @@ jobs:
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
-        with:
-          path: "src"
+        # FIXED: Removed the nested path constraint to keep paths standard
 
       - name: Setup JDK 21
         uses: actions/setup-java@v4
@@ -39,7 +38,6 @@ jobs:
 
       - name: Build Plugins
         run: |
-          cd $GITHUB_WORKSPACE/src
           chmod +x gradlew
           ./gradlew make makePluginsJson --no-build-cache --rerun-tasks
           
@@ -63,9 +61,7 @@ jobs:
       - name: Deploy to builds branch
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          # FIXED: Instructs the deployer action to reference your actual git directory root
-          workspace: src                  
-          folder: ../output_builds       # Points to the staging folder relative to the new workspace root
+          folder: output_builds          # Now maps perfectly to the workspace structure
           branch: builds
           token: ${{ secrets.GITHUB_TOKEN }}
           clean: false
