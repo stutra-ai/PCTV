@@ -27,12 +27,11 @@ jobs:
         with:
           path: "src"
 
-      # REPLACED actions/checkout with an automatic script fallback
-      name: Prepare builds folder
+      - name: Prepare builds folder
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir $GITHUB_WORKSPACE/builds
+          mkdir -p $GITHUB_WORKSPACE/builds
           cd $GITHUB_WORKSPACE/builds
           git init
           git config --local user.email "actions@github.com"
@@ -75,6 +74,6 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/builds
           git add .
-          # If we created a brand new branch, we use a standard commit instead of --amend
+          # Try to commit normally first if it's a new branch, fallback to amend if it exists
           git commit -m "Build $GITHUB_SHA" || git commit --amend -m "Build $GITHUB_SHA" || exit 0
           git push origin builds --force
