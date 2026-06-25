@@ -44,7 +44,6 @@ jobs:
             echo "Branch 'builds' not found. Seeding initial environment..."
             git checkout --orphan builds
             git rm -rf . || true
-            # FORCE SEED: Create a dummy tracking file so git has a baseline to push
             echo "Initial Build Sync Placeholder" > .init_seed
           fi
 
@@ -67,9 +66,15 @@ jobs:
           chmod +x gradlew
           ./gradlew make makePluginsJson --no-build-cache --rerun-tasks
           
-          # Universal directory mapping safety fallbacks
-          cp -r build/plugins.json $GITHUB_WORKSPACE/builds/ || cp -r **/build/plugins.json $GITHUB_WORKSPACE/builds/ || true
-          find . -name "*.cs3" -exec cp {} $GITHUB_WORKSPACE/builds/ \; || true
+          echo "==== Deep Scanning Workspace for Artifacts ===="
+          # Automatically hunts down any plugins.json and copies it to staging
+          find . -name "plugins.json" -exec cp {} $GITHUB_WORKSPACE/builds/ \;
+          
+          # Automatically hunts down all compiled extensions (.cs3 files) and copies them
+          find . -name "*.cs3" -exec cp {} $GITHUB_WORKSPACE/builds/ \;
+          
+          echo "Listing copied builds content:"
+          ls -la $GITHUB_WORKSPACE/builds/
 
       - name: Push builds
         env:
@@ -80,10 +85,6 @@ jobs:
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
           
-          # Force add tracking variables globally across the root tree 
           git add -A
-          
-          # Explicit execution path forces pushing even if staging encounters empty tracking parameters
           git commit -m "Build update: $GITHUB_SHA" --allow-empty
-          
           git push origin builds --force
