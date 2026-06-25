@@ -43,7 +43,7 @@ jobs:
           chmod +x gradlew
           ./gradlew make makePluginsJson --no-build-cache --rerun-tasks
           
-          # Create a separate, isolated folder for staging
+          # Create an isolated clean folder for staging output artifacts
           mkdir -p $GITHUB_WORKSPACE/output_builds
           
           echo "==== Hunting for Compiled Extension Assets ===="
@@ -64,11 +64,10 @@ jobs:
           echo "Staging items verified:"
           ls -la $GITHUB_WORKSPACE/output_builds/
 
-      - name: Push builds branch
-        uses: s0r00t/git-publish-subdir-action@v1.6.0
-        env:
-          REPO: self
-          BRANCH: builds               # The target deployment branch
-          FOLDER: output_builds        # The directory containing the built extension files
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MESSAGE: "Build update: {sha}"
+      - name: Deploy to builds branch
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: output_builds          # The folder the action should deploy.
+          branch: builds                # The branch the action should deploy to.
+          token: ${{ secrets.GITHUB_TOKEN }}
+          clean: false                  # Set to true if you want to wipe previous build history inside the builds branch
