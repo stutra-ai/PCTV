@@ -1,5 +1,6 @@
 name: Build
 
+# https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#concurrency
 concurrency:
   group: "build"
   cancel-in-progress: true
@@ -11,9 +12,9 @@ on:
       - main
     paths-ignore:
       - '*.md'
+      - '.github/workflows/**'
       - 'repo.json'
       - 'DomainCheck.py'
-  workflow_dispatch:    
 
 permissions:
   contents: write
@@ -22,10 +23,19 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Source
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Fetches all branches so Git knows exactly where 'builds' is
+          path: "src"
+
+      - name: Checkout builds
+        uses: actions/checkout@v4
+        with:
+          ref: "builds"
+          path: "builds"
+
+      - name: Clean old builds
+        run: rm -f $GITHUB_WORKSPACE/builds/*.cs3
 
       - name: Setup JDK 21
         uses: actions/setup-java@v4
@@ -37,44 +47,22 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
-      - name: Build and Push Plugins Directly
+      - name: Build Plugins
+        run: |
+          cd $GITHUB_WORKSPACE/src
+          chmod +x gradlew
+          ./gradlew make makePluginsJson
+          cp **/build/*.cs3 $GITHUB_WORKSPACE/builds || true
+          cp build/plugins.json $GITHUB_WORKSPACE/builds || true
+
+      - name: Push builds
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 1. Build the source code
-          chmod +x gradlew
-          ./gradlew make makePluginsJson --no-build-cache --rerun-tasks
-          
-          # 2. Back up our compiled files safely into the runner RAM temporary space
-          mkdir -p /tmp/artifacts
-          find . -name "plugins.json" -exec cp {} /tmp/artifacts/ \;
-          find . -name "*.cs3" -exec cp {} /tmp/artifacts/ \;
-          
-          echo "==== Verified Compiled Files ===="
-          ls -la /tmp/artifacts/
-          
-          # 3. Configure Git Identity
-          git config --global user.email "actions@github.com"
-          git config --global user.name "GitHub Actions"
-          
-          # FIXED: Clear out permission modifications to let Git switch branches cleanly
-          git reset --hard
-          
-          # 4. Force switch local runner to the builds branch layout cleanly
-          if git fetch origin builds --depth=1; then
-            git checkout -B builds origin/builds
-          else
-            git checkout --orphan builds
-            git rm -rf . || true
-          fi
-          
-          # 5. Bring our backed up compilation files into the root branch directory
-          cp /tmp/artifacts/* .
-          
-          # 6. Force add and sync straight up to your GitHub repository
-          git add plugins.json *.cs3
-          git commit -m "Automated build update: $GITHUB_SHA" --allow-empty
-          
-          # Set explicit remote auth to bypass deployment permission blocks
+          cd $GITHUB_WORKSPACE/builds
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add .
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+          git commit --amend -m "Build $GITHUB_SHA" || git commit -m "Build $GITHUB_SHA" || exit 0
           git push origin builds --force
